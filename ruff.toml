@@ -9,4 +9,4 @@ ignore = ["S101", "ANN101", "ANN102", "TD002", "TD003", "FIX002"]
 
 [lint.per-file-ignores]
 "tests/*" = ["D", "ANN001", "ANN201", "ARG001", "B018"]
-"timothy/examples/basic_math.py" = ["T201"]
+"timothy/examples/*" = ["T201"]
