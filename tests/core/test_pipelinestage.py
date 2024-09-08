@@ -5,6 +5,7 @@ from timothy.core._exceptions import (
     CannotCallStageError,
     DuplicateObjectError,
     DuplicateStageError,
+    InvalidParamsError,
     InvalidResultsError,
 )
 from timothy.core._pipelineobject import PipelineObject, PipelineObjectSet
@@ -21,21 +22,50 @@ class TestPipelineStage:
 
         return return_zero
 
-    @pytest.fixture(scope="module")
-    def return_zero_stage(self, return_zero_func):
-        return PipelineStage(return_zero_func, returns=["baz", "bazstr"])
-
-    def test_name_is_correct(self, return_zero_stage):
+    def test_name_is_correct(self, return_zero_func):
+        return_zero_stage = PipelineStage(return_zero_func, returns=["baz", "bazstr"])
         assert return_zero_stage.name == "return_zero"
 
-    def test_func_is_correct(self, return_zero_stage, return_zero_func):
+    def test_func_is_correct(self, return_zero_func):
+        return_zero_stage = PipelineStage(return_zero_func, returns=["baz", "bazstr"])
         assert return_zero_stage.func is return_zero_func
 
-    def test_params_are_correct(self, return_zero_stage):
-        assert return_zero_stage.params == ["foo", "bar"]
+    @pytest.mark.parametrize(
+        ("params_specified", "params_expected"),
+        [
+            (None, ["foo", "bar"]),
+            (["foo", "bar"], ["foo", "bar"]),
+            (["bar", "foo"], ["bar", "foo"]),
+            (["foo", "baz"], ["foo", "baz"]),
+            (["baz", "boz"], ["baz", "boz"]),
+        ],
+    )
+    def test_params_are_correct(self, return_zero_func, params_specified, params_expected):
+        return_zero_stage = PipelineStage(
+            return_zero_func,
+            params=params_specified,
+            returns=["baz", "bazstr"],
+        )
+        assert return_zero_stage.params == params_expected
 
-    def test_returns_are_correct(self, return_zero_stage):
+    def test_returns_are_correct(self, return_zero_func):
+        return_zero_stage = PipelineStage(return_zero_func, returns=["baz", "bazstr"])
         assert return_zero_stage.returns == ["baz", "bazstr"]
+
+    @pytest.mark.parametrize(
+        "params_specified",
+        [
+            ["hello"],
+            ["hello", "world", "helloworld"],
+        ],
+    )
+    def test_init_raises_if_incorrect_number_of_params(self, return_zero_func, params_specified):
+        with pytest.raises(InvalidParamsError):
+            PipelineStage(
+                return_zero_func,
+                params=params_specified,
+                returns=["baz", "bazstr"],
+            )
 
     @pytest.mark.parametrize(
         ("raw_return_value", "declared_returns", "expected_call_return_value"),

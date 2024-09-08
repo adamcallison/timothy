@@ -8,6 +8,7 @@ from timothy.core._exceptions import (
     CannotCallStageError,
     DuplicateObjectError,
     DuplicateStageError,
+    InvalidParamsError,
     InvalidResultsError,
     MissingPipelineStageError,
 )
@@ -21,14 +22,30 @@ P = ParamSpec("P")
 
 
 class PipelineStage(PipelineComponent):
-    def __init__(self, func: StageFunction, returns: Sequence[str]) -> None:
+    def __init__(
+        self,
+        func: StageFunction,
+        returns: Sequence[str],
+        name: str | None = None,
+        params: Sequence[str] | None = None,
+    ) -> None:
         self._func = func
-        self._params = list(signature(func).parameters)
+        self._name = name if name is not None else self._func.__name__
+
+        base_params = list(signature(func).parameters)
+        if params is None:
+            self._params = base_params
+        elif len(params) != len(base_params):
+            msg = f"Cannot rename {tuple(base_params)} to {tuple(params)}"
+            raise InvalidParamsError(msg)
+        else:
+            self._params = list(params)
+
         self._returns = list(returns)
 
     @property
     def name(self) -> str:
-        return self._func.__name__
+        return self._name
 
     @property
     def func(self) -> StageFunction:

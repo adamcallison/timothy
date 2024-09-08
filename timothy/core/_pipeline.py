@@ -35,9 +35,11 @@ class Pipeline:
     def register(
         self,
         returns: Sequence[str],
+        name: str | None = None,
+        params: Sequence[str] | None = None,
     ) -> Callable[[Callable[P, T]], Callable[P, T]]:
         def dec(f: Callable[P, T]) -> Callable[P, T]:
-            stage = PipelineStage(f, returns)
+            stage = PipelineStage(f, returns, name=name, params=params)
             self._check_names_are_registered_objects(list(stage.params))
             self._check_names_are_registered_objects(list(returns))
             self._stages += stage

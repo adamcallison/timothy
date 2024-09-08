@@ -34,6 +34,24 @@ class TestPipeline:
         assert stage.params == ["hello", "world"]
         assert stage.returns == ["foo", "bar"]
 
+    def test_register_respects_specified_name(self):
+        pipeline = Pipeline("name", DAGPipelineStageRunner())
+
+        @pipeline.register(name="iamadifferentname", returns=[])
+        def iamafunction() -> None: ...
+
+        assert pipeline.stages["iamadifferentname"].name == "iamadifferentname"
+
+    def test_register_respects_specified_params(self):
+        pipeline = Pipeline("name", DAGPipelineStageRunner())
+        pipeline.register_object("iamavalue", MemoryPipelineIO())
+
+        @pipeline.register(params=["iamavalue"], returns=[])
+        def iamafunction(hello_world: int) -> None:
+            del hello_world
+
+        assert pipeline.stages["iamafunction"].params == ["iamavalue"]
+
     def test_run_works_correctly(self):
         pipeline = Pipeline("test_pipeline", DAGPipelineStageRunner())
         pipeline.register_object("num1", MemoryPipelineIO(initial_value=5))

@@ -72,6 +72,11 @@ def _get_pipeline(json_dir: Path) -> Pipeline:
         """Exclude rows by type from initial data."""
         return [row for row in initial_data if row["type"] not in exclude_types]
 
+    @basic_agg_pipeline.register(
+        name="aggregations_by_type_without_excluded",
+        params=["initial_data_without_excluded"],
+        returns=["aggregated_by_type_without_excluded"],
+    )
     @basic_agg_pipeline.register(returns=["aggregated_by_type"])
     def aggregations_by_type(initial_data: DataRows) -> AggregationRows:
         """Aggregate data by type."""
@@ -84,25 +89,15 @@ def _get_pipeline(json_dir: Path) -> Pipeline:
             aggs.append(agg)
         return aggs
 
-    @basic_agg_pipeline.register(returns=["aggregated_by_type_without_excluded"])
-    def aggregations_by_type_without_excluded(
-        aggregated_by_type: list[dict[str, str | float]],
-        exclude_types: list[str],
-    ) -> list[dict[str, str | float]]:
-        """Remove excluded types from aggregated data."""
-        return [row for row in aggregated_by_type if row["type"] not in exclude_types]
-
+    @basic_agg_pipeline.register(
+        name="aggregations_total_without_excluded",
+        params=["initial_data_without_excluded"],
+        returns=["aggregated_total_without_excluded"],
+    )
     @basic_agg_pipeline.register(returns=["aggregated_total"])
     def aggregations_total(initial_data: DataRows) -> AggregationRow:
         """Aggregate over all rows."""
         return _aggregations(initial_data)
-
-    @basic_agg_pipeline.register(returns=["aggregated_total_without_excluded"])
-    def aggregations_total_without_excluded(
-        initial_data_without_excluded: list[dict[str, str | float]],
-    ) -> dict[str, float]:
-        """Aggregate over all rows except those of excluded type."""
-        return _aggregations(initial_data_without_excluded)
 
     return basic_agg_pipeline
 
