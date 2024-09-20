@@ -6,8 +6,7 @@ import pprint
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
-from timothy import DAGPipelineStageRunner, JSONFilePipelineIO, MemoryPipelineIO
-from timothy.core import Pipeline
+from timothy import DAGPipelineStageRunner, JSONFilePipelineIO, MemoryPipelineIO, Pipeline
 
 
 class DataRow(TypedDict):

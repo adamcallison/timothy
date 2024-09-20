@@ -1,7 +1,6 @@
 """Example pipeline using basic math."""
 
-from timothy import DAGPipelineStageRunner, MemoryPipelineIO
-from timothy.core import Pipeline
+from timothy import DAGPipelineStageRunner, MemoryPipelineIO, Pipeline
 
 basic_math_pipeline = Pipeline("basic_math", stage_runner=DAGPipelineStageRunner())
 basic_math_pipeline.register_object("num1", MemoryPipelineIO[int](initial_value=5))

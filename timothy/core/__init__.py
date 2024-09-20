@@ -1,6 +1,6 @@
 """Core functionality."""
 
-from timothy.core._pipeline import Pipeline
+from timothy.core._pipeline import PipelineBase
 from timothy.core._pipelineio import (
     EmptyPipelineIO,
     EmptyPipelineIOType,
@@ -14,7 +14,7 @@ __all__ = [
     "PipelineObjectSet",
     "PipelineStage",  # TODO: can I avoid exposing this?
     "PipelineStageSet",
-    "Pipeline",
+    "PipelineBase",
     "PipelineIO",
     "EmptyPipelineIOType",
     "EmptyPipelineIO",
