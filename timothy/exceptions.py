@@ -1,5 +1,17 @@
 """Exceptions."""
 
-from timothy.core._exceptions import CannotRunPipelineError, MissingPipelineObjectError
+from timothy.core._exceptions import (
+    CannotRunPipelineError,
+    DuplicateObjectError,
+    MissingPipelineObjectError,
+    PipelineConfigError,
+    PipelineError,
+)
 
-__all__ = ["CannotRunPipelineError", "MissingPipelineObjectError"]
+__all__ = [
+    "PipelineError",
+    "CannotRunPipelineError",
+    "MissingPipelineObjectError",
+    "PipelineConfigError",
+    "DuplicateObjectError",
+]

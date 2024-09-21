@@ -64,3 +64,6 @@ class PipelineComponentSet(Generic[_PipelineComponent], ABC):
         if isinstance(other, PipelineComponent):
             return self + [cast(_PipelineComponent, other)]  # noqa: RUF005
         return self.__class__(*self._components.values(), *other)
+
+    def __contains__(self, item: str) -> bool:
+        return any(item == component_name for component_name in self.keys())

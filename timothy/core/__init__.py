@@ -8,6 +8,7 @@ from timothy.core._pipelineio import (
 )
 from timothy.core._pipelineobject import PipelineObject, PipelineObjectSet
 from timothy.core._pipelinestage import PipelineStage, PipelineStageSet
+from timothy.core._pipelinestagerunner import PipelineStageRunner
 
 __all__ = [
     "PipelineObject",  # TODO: can I avoid exposing this?
@@ -18,4 +19,5 @@ __all__ = [
     "PipelineIO",
     "EmptyPipelineIOType",
     "EmptyPipelineIO",
+    "PipelineStageRunner",
 ]
