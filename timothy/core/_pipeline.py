@@ -1,45 +1,57 @@
-from collections.abc import Callable, Sequence
-from typing import ParamSpec, TypeVar
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, Generic, ParamSpec, TypeVar
 
-from timothy.core._pipelineio import PipelineIO
-from timothy.core._pipelineobject import PipelineObject, PipelineObjectSet
 from timothy.core._pipelinestage import PipelineStage, PipelineStageSet
 from timothy.core._pipelinestagerunner import PipelineStageRunner
+from timothy.core._pipelinestorage import PipelineStorage
+from timothy.core._typedefs import Obj
+from timothy.exceptions import PipelineConfigError
 
 T = TypeVar("T")
 R = TypeVar("R")
 P = ParamSpec("P")
 
 
-class PipelineBase:
-    def __init__(self, name: str, stage_runner: PipelineStageRunner) -> None:
+class _PipelineMaybeAttribute(Generic[T]):
+    def __init__(self, attrname: str, attrtype: Callable[..., T]) -> None:
+        del attrtype
+        self._attrname = attrname
+        self._maybe_name = f"_maybe_{attrname}"
+
+    def __get__(self, obj: "Pipeline", objtype: type["Pipeline"] | None = None) -> T:
+        maybe_attr = getattr(obj, self._maybe_name)
+        if maybe_attr is not None:
+            return maybe_attr
+        msg = f"Pipeline {self._attrname} not set"
+        raise PipelineConfigError(msg)
+
+    def __set__(self, obj: "Pipeline", value: T) -> None:
+        setattr(obj, self._maybe_name, value)
+
+
+class Pipeline:
+    storage = _PipelineMaybeAttribute("storage", PipelineStorage)
+    stagerunner = _PipelineMaybeAttribute("stagerunner", PipelineStageRunner)
+
+    def __init__(self, name: str, *, stages: PipelineStageSet | None = None) -> None:
         self._name = name
-        self._objs = PipelineObjectSet()
-        self._stages = PipelineStageSet()
-        self._stage_runner = stage_runner
+        self._stages = stages or PipelineStageSet()
+        self._maybe_storage: PipelineStorage | None = None
+        self._maybe_stagerunner: PipelineStageRunner | None = None
 
     @property
     def name(self) -> str:
         return self._name
 
     @property
-    def objects(self) -> PipelineObjectSet:
-        return self._objs
-
-    @property
     def stages(self) -> PipelineStageSet:
         return self._stages
 
-    def register_object(self, name: str, io: PipelineIO[T]) -> None:
-        obj = PipelineObject[T](name, io)
-        self._register_object_hook(obj)
-        self._objs += obj
+    def add_stage(self, stage: PipelineStage) -> None:
+        self._stages += stage
 
-    def _register_object_hook(self, obj: PipelineObject[T]) -> None:
-        del obj
-
-    def _register_stage_hook(self, stage: PipelineStage) -> None:
-        del stage
+    def run(self) -> None:
+        self.stagerunner(self._stages, self.storage)
 
     def register(
         self,
@@ -49,11 +61,15 @@ class PipelineBase:
     ) -> Callable[[Callable[P, T]], Callable[P, T]]:
         def dec(f: Callable[P, T]) -> Callable[P, T]:
             stage = PipelineStage(f, returns, name=name, params=params)
-            self._register_stage_hook(stage)
-            self._stages += stage
+            self.add_stage(stage)
             return f
 
         return dec
 
-    def run(self) -> None:
-        self._stage_runner(self._stages, self._objs)
+    def set_values(self, **kwargs: Any) -> None:
+        self.storage.store_many(**kwargs)
+
+    def get_values(self, *names: str) -> Mapping[str, Obj]:
+        if not names:
+            names = tuple(self.storage.list_names())
+        return dict(zip(names, self.storage.fetch_many(*names), strict=True))

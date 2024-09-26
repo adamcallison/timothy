@@ -1,27 +1,23 @@
-from collections import Counter
-from collections.abc import Sequence
+from collections import Counter, defaultdict
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from inspect import signature
 from itertools import chain
-from typing import Any, ParamSpec, TypeVar, cast
+from typing import Any, Self, TypeVar, cast, overload
 
 from timothy.core._exceptions import (
     CannotCallStageError,
-    DuplicateObjectError,
+    DuplicateReturnError,
     DuplicateStageError,
     InvalidParamsError,
     InvalidResultsError,
     MissingPipelineStageError,
 )
-from timothy.core._pipelinecomponentset import PipelineComponent, PipelineComponentSet
-from timothy.core._pipelineio import EmptyPipelineIO
-from timothy.core._pipelineobject import PipelineObjectSet
-from timothy.core._typedefs import StageFunction
+from timothy.core._typedefs import Obj, StageFunction
 
 T = TypeVar("T")
-P = ParamSpec("P")
 
 
-class PipelineStage(PipelineComponent):
+class PipelineStage:
     def __init__(
         self,
         func: StageFunction,
@@ -59,24 +55,12 @@ class PipelineStage(PipelineComponent):
     def returns(self) -> list[str]:
         return self._returns
 
-    def call(self, params: PipelineObjectSet, returns: PipelineObjectSet) -> None:
-        if (given_p_names := tuple(params.keys())) != (p_names := tuple(self._params)):
-            msg = f"Stage '{self.name}' has param(s) {p_names} but called with {given_p_names}."
+    def call(self, param_objs: Sequence[Obj]) -> Sequence[Obj]:
+        if (n_param_objs := len(param_objs)) != (n_params := len(self._params)):
+            msg = f"Stage '{self.name}' has {n_params} param(s) but called with {n_param_objs}."
             raise CannotCallStageError(msg)
 
-        if (given_r_names := tuple(returns.keys())) != (r_names := tuple(self._returns)):
-            msg = f"Stage '{self.name}' has return(s) {r_names} but called with {given_r_names}."
-            raise CannotCallStageError(msg)
-
-        param_vals = params.load()
-        empty_p = tuple(
-            pn for pn, po in zip(self.params, param_vals, strict=True) if po is EmptyPipelineIO
-        )
-        if empty_p:
-            msg = f"Cannot call '{self.name}' due to valueless params {empty_p}."
-            raise CannotCallStageError(msg)
-        result_vals = self._ensure_valid_results(self.func(*param_vals))
-        returns.save(result_vals)
+        return self._ensure_valid_results(self.func(*param_objs))
 
     def _ensure_valid_results(self, raw_result: T | list[Any]) -> T | list[Any]:
         if raw_result is None:
@@ -98,14 +82,14 @@ class PipelineStage(PipelineComponent):
     def _validate_returns_none(self, return_value: T) -> T:
         assert return_value is None
         if (exprlen := len(self.returns)) > 1:
-            msg = f"'{self.name}' should return {exprlen} values but returned 'None'."
+            msg = f"'Stage {self.name}' should return {exprlen} value(s) but returned 'None'."
             raise InvalidResultsError(msg)
         return cast(T, return_value)
 
     def _validate_returns_tuple(self, return_value: T) -> T:
         assert type(return_value) is tuple
         if (exprlen := len(self.returns)) not in (1, (rlen := len(return_value))):
-            msg = f"'{self.name}' should return {exprlen} values but returned {rlen}."
+            msg = f"'Stage {self.name}' should return {exprlen} value(s) but returned {rlen}."
             raise InvalidResultsError(msg)
         return cast(T, return_value)
 
@@ -113,21 +97,60 @@ class PipelineStage(PipelineComponent):
         assert return_value is not None
         assert type(return_value) is not tuple
         if (exprlen := len(self.returns)) != 1:
-            msg = f"'{self.name}' should return {exprlen} values but returned 1."
+            msg = f"'Stage {self.name}' should return {exprlen} value(s) but returned 1."
             raise InvalidResultsError(msg)
         return return_value
 
 
-class PipelineStageSet(PipelineComponentSet[PipelineStage]):
-    _missing_component_error = MissingPipelineStageError
-
-    @staticmethod
-    def _validate(*pipeline_stages: PipelineStage) -> None:
-        name_counts = Counter(p.name for p in pipeline_stages)
+class PipelineStageSet:
+    def __init__(self, *stages: PipelineStage) -> None:
+        name_counts = Counter(p.name for p in stages)
         if duplicate_names := tuple(name for name, count in name_counts.items() if count > 1):
             msg = f"Pipeline stage names {duplicate_names} appear more than once."
             raise DuplicateStageError(msg)
-        return_counts = Counter(chain(*(p.returns for p in pipeline_stages)))
+        return_counts = Counter(chain(*(p.returns for p in stages)))
         if duplicate_returns := tuple(name for name, count in return_counts.items() if count > 1):
             msg = f"Objects {duplicate_returns} should not be returned by multiple stages."
-            raise DuplicateObjectError(msg)
+            raise DuplicateReturnError(msg)
+
+        self._stages: dict[str, PipelineStage] = {s.name: s for s in stages}
+
+    def names(self) -> Iterator[str]:
+        yield from self._stages.keys()
+
+    def __iter__(self) -> Iterator[PipelineStage]:
+        yield from self._stages.values()
+
+    def __add__(self, other: PipelineStage) -> Self:
+        return self.__class__(*self._stages.values(), other)
+
+    @overload
+    def __getitem__(self, names: str) -> PipelineStage: ...
+
+    @overload
+    def __getitem__(self, names: list[str]) -> Self: ...
+
+    def __getitem__(self, names: str | list[str]) -> PipelineStage | Self:
+        if isinstance(names, str):
+            for first in self[[names]]:
+                return first
+        if missing_stages := tuple(set(names) - set(self.names())):
+            msg = f"No such pipeline stages {missing_stages}."
+            raise MissingPipelineStageError(msg)
+        return self.__class__(*(self._stages[n] for n in names))
+
+    @property
+    def returns(self) -> Mapping[str, PipelineStage]:
+        returns: dict[str, PipelineStage] = {}
+        for stage in self._stages.values():
+            for return_name in stage.returns:
+                returns[return_name] = stage
+        return returns
+
+    @property
+    def params(self) -> Mapping[str, Collection[PipelineStage]]:
+        params: dict[str, set[PipelineStage]] = defaultdict(set)
+        for stage in self._stages.values():
+            for param_name in stage.params:
+                params[param_name].add(stage)
+        return params

@@ -1,21 +1,17 @@
-import pytest
+from timothy._pipeline_impl import json_pipeline, memory_pipeline
+from timothy._pipelinestagerunner_impl import DAGPipelineStageRunner
+from timothy._pipelinestorage_impl import JSONFilePipelineStorage, MemoryPipelineStorage
+from timothy.core import Pipeline
 
-from timothy import DAGPipelineStageRunner, MemoryPipelineIO
-from timothy._pipeline_impl import Pipeline
-from timothy.exceptions import MissingPipelineObjectError
+
+def test_memory_pipeline_produces_pipeline_with_correct_attributes():
+    pipeline = memory_pipeline(Pipeline("a_pipeline"))
+    assert isinstance(pipeline.stagerunner, DAGPipelineStageRunner)
+    assert isinstance(pipeline.storage, MemoryPipelineStorage)
 
 
-class TestPipeline:
-    @pytest.mark.parametrize("skip_obj", ["hello", "world", "foo", "bar"])
-    def test_register_raises_if_object_not_registered(self, skip_obj):
-        pipeline = Pipeline("name", DAGPipelineStageRunner())
-        for obj_name in ("hello", "world", "foo", "bar"):
-            if obj_name == skip_obj:
-                continue
-            pipeline.register_object(obj_name, MemoryPipelineIO())
-
-        with pytest.raises(MissingPipelineObjectError):
-
-            @pipeline.register(returns=["foo", "bar"])
-            def iamafunction(hello: str, world: int) -> tuple[list[str], dict[str, int]]:
-                return [hello, hello], {"avalue": world, "anothervalue": world}
+def test_json_pipeline_produces_pipeline_with_correct_attributes(tmp_path):
+    pipeline = json_pipeline(Pipeline("a_pipeline"), tmp_path)
+    assert isinstance(pipeline.stagerunner, DAGPipelineStageRunner)
+    assert isinstance(pipeline.storage, JSONFilePipelineStorage)
+    assert pipeline.storage.location == tmp_path

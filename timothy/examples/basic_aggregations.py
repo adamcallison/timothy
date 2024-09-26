@@ -1,16 +1,13 @@
 """Example pipeline using basic math."""
 
-if __name__ != "__main__":
-    msg = f"{__name__} should not be imported."
-    raise RuntimeError(msg)
-
+import argparse
 import json
 import pprint
-from operator import itemgetter
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
-from timothy import DAGPipelineStageRunner, JSONPipeline
+from timothy import json_pipeline
+from timothy.core import Pipeline
 
 
 class DataRow(TypedDict):
@@ -33,10 +30,7 @@ DataRows = list[DataRow]
 AggregationRows = list[AggregationRow]
 
 
-json_path = Path(input("Enter path of directory to store json files: "))
-
-basic_agg_pipe = JSONPipeline("basic_agg", stage_runner=DAGPipelineStageRunner())
-basic_agg_pipe.set_location(json_path)
+basic_agg_pipe = Pipeline("basic_agg")
 
 
 def _aggregations(data: DataRows) -> AggregationRow:
@@ -98,15 +92,24 @@ def setup_initial_data(json_dir: Path) -> None:
         json.dump(initial_data, f, indent=4)
 
 
-def execute_pipeline(pipe: JSONPipeline, exclude_types: list[str]) -> None:
-    """Execute the pipeline and display final values."""
-    pipe.set_initial_values(exclude_types=exclude_types)
-    pipe.run()
+def _get_json_path_from_cli() -> Path:
+    parser = argparse.ArgumentParser("basic aggregation pipeline example")
+    parser.add_argument("json_path", type=Path)
+    json_path: Path = parser.parse_args().json_path
+    return json_path
 
-    values = {k: v.load() for k, v in sorted(basic_agg_pipe.objects.items(), key=itemgetter(0))}
+
+if __name__ == "__main__":
+    json_path = _get_json_path_from_cli()
+
+    setup_initial_data(json_path)
+
+    basic_agg_pipe = json_pipeline(basic_agg_pipe, json_path)
+
+    basic_agg_pipe.set_values(exclude_types=["fruit", "grain"])
+
+    basic_agg_pipe.run()
+
+    values = basic_agg_pipe.get_values()
     print("Final values are: ")
     pprint.pp(values)
-
-
-setup_initial_data(json_path)
-execute_pipeline(basic_agg_pipe, exclude_types=["fruit", "grain"])

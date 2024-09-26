@@ -1,108 +1,75 @@
-import io
-from typing import TypeVar
+from copy import deepcopy
 
 import pytest
 
-from timothy import DAGPipelineStageRunner, MemoryPipelineIO
-from timothy.core._pipeline import PipelineBase
+from tests.stubs import StubPipelineStageRunner, StubPipelineStorage
+from timothy.core._pipeline import Pipeline
+from timothy.exceptions import PipelineConfigError
 
-T = TypeVar("T")
+
+def concrete_pipeline(pipeline: Pipeline) -> Pipeline:
+    pipeline = deepcopy(pipeline)
+    pipeline.storage = StubPipelineStorage()
+    pipeline.stagerunner = StubPipelineStageRunner()
+    return pipeline
 
 
-class TestPipelineBase:
-    @pytest.mark.parametrize("name", ["iamaname", "iamanothername"])
-    def test_name_is_correct(self, name):
-        pipeline = PipelineBase(name, DAGPipelineStageRunner())
-        assert pipeline.name == name
+class TestPipeline:
+    @pytest.fixture()
+    def ready_made_pipeline(self) -> Pipeline:
+        p = concrete_pipeline(Pipeline("test_pipeline"))
 
-    @pytest.mark.parametrize("object_name", ["iamaname", "iamanothername"])
-    def test_registered_object_can_be_retrieved_by_name(self, object_name):
-        pipeline = PipelineBase("name", DAGPipelineStageRunner())
-        pipeline.register_object(object_name, MemoryPipelineIO())
-        pipeline_object = pipeline.objects[object_name]
-        assert pipeline_object.name == object_name
-
-    def test_registered_function_can_be_retrieved_by_name(self):
-        pipeline = PipelineBase("name", DAGPipelineStageRunner())
-        for obj_name in ("hello", "world", "foo", "bar"):
-            pipeline.register_object(obj_name, MemoryPipelineIO())
-
-        @pipeline.register(returns=["foo", "bar"])
-        def iamafunction(hello: str, world: int) -> tuple[list[str], dict[str, int]]:
-            return [hello, hello], {"avalue": world, "anothervalue": world}
-
-        stage = pipeline.stages["iamafunction"]
-
-        assert stage.func is iamafunction
-        assert stage.params == ["hello", "world"]
-        assert stage.returns == ["foo", "bar"]
-
-    def test_register_respects_specified_name(self):
-        pipeline = PipelineBase("name", DAGPipelineStageRunner())
-
-        @pipeline.register(name="iamadifferentname", returns=[])
-        def iamafunction() -> None: ...
-
-        assert pipeline.stages["iamadifferentname"].name == "iamadifferentname"
-
-    def test_register_respects_specified_params(self):
-        pipeline = PipelineBase("name", DAGPipelineStageRunner())
-        pipeline.register_object("iamavalue", MemoryPipelineIO())
-
-        @pipeline.register(params=["iamavalue"], returns=[])
-        def iamafunction(hello_world: int) -> None:
-            del hello_world
-
-        assert pipeline.stages["iamafunction"].params == ["iamavalue"]
-
-    def test_run_works_correctly(self):
-        pipeline = PipelineBase("test_pipeline", DAGPipelineStageRunner())
-        pipeline.register_object("num1", MemoryPipelineIO(initial_value=5))
-        pipeline.register_object("num2", MemoryPipelineIO(initial_value=7.3))
-        pipeline.register_object("num3", MemoryPipelineIO())
-        pipeline.register_object("num4", MemoryPipelineIO())
-        pipeline.register_object("num5", MemoryPipelineIO())
-
-        print_to = io.StringIO()
-
-        @pipeline.register(returns=["num5"])
+        @p.register(returns=["num5"])
         def add_num3_and_num4(num3: int, num4: float) -> float:
-            """Add num3 and num 4."""
-            num5 = num3 + num4
-            print(f"Added num3 ({num3}) and num4 ({num4}) to get num5 ({num5}).", file=print_to)
-            return num5
+            return num3 + num4
 
-        @pipeline.register(returns=["num4"])
+        @p.register(returns=["num4"])
         def cube_num2(num2: float) -> float:
-            """Cube num2."""
-            num4 = num2**3
-            print(f"Cubed num2 ({num2}) to get num4 ({num4}).", file=print_to)
-            return num4
+            return num2**3
 
-        @pipeline.register(returns=["num3"])
+        @p.register(returns=["num3"])
         def square_num1(num1: int) -> int:
-            """Square num1."""
-            num3 = num1**2
-            print(f"Squared num1 ({num1}) to get num3 ({num3}).", file=print_to)
-            return num3
+            return num1**2
 
-        pipeline.run()
+        return p
 
-        values_expected = {"num1": 5, "num2": 7.3, "num3": 25, "num4": 389.017, "num5": 414.017}
-        first_prints_expected = [
-            "Squared num1 (5) to get num3 (25).",
-            "Cubed num2 (7.3) to get num4 (389.017).",
-        ]
-        second_prints_expected = [
-            "Added num3 (25) and num4 (389.017) to get num5 (414.017).",
-        ]
-        values_actual = {k: v.load() for k, v in pipeline.objects.items()}
-        prints_actual = print_to.getvalue().strip().split("\n")
-        first_prints_actual = prints_actual[: len(first_prints_expected)]
-        second_prints_actual = prints_actual[
-            len(first_prints_expected) : len(first_prints_expected) + len(second_prints_expected)
-        ]
+    def test_function_can_be_registered_as_stage_and_retrieved(self):
+        p = concrete_pipeline(Pipeline("test_pipeline"))
 
-        assert values_actual == values_expected
-        assert sorted(first_prints_actual) == sorted(first_prints_expected)
-        assert sorted(second_prints_actual) == sorted(second_prints_expected)
+        @p.register(returns=[])
+        def some_func() -> None: ...
+
+        stage = p.stages[some_func.__name__]
+        assert stage.name == some_func.__name__
+        assert stage.func is some_func
+
+    def test_pipeline_name_is_correct(self, ready_made_pipeline: Pipeline):
+        assert ready_made_pipeline.name == "test_pipeline"
+
+    def test_values_can_be_set_and_get(self, ready_made_pipeline: Pipeline):
+        ready_made_pipeline.set_values(value1="hello", value2="world")
+        values = ready_made_pipeline.get_values()
+        assert values == {"value1": "hello", "value2": "world"}
+
+    def test_run_runs_pipeline_and_stores_correct_values(self, ready_made_pipeline: Pipeline):
+        ready_made_pipeline.set_values(num1=5, num2=7.3)
+        ready_made_pipeline.run()
+        values = ready_made_pipeline.get_values()
+        assert values == {"num1": 5, "num2": 7.3, "num3": 25, "num4": 389.017, "num5": 414.017}
+
+    def test_pipeline_can_be_instantiated_with_existing_stages(self, ready_made_pipeline: Pipeline):
+        new_pipeline = concrete_pipeline(
+            Pipeline("new_pipeline", stages=ready_made_pipeline.stages),
+        )
+        for stage in ready_made_pipeline.stages:
+            assert new_pipeline.stages[stage.name].func is stage.func
+
+    def test_accessing_storage_attribute_raises_if_storage_not_set(self):
+        new_pipeline = Pipeline("new_pipeline")
+        with pytest.raises(PipelineConfigError):
+            new_pipeline.storage
+
+    def test_accessing_stagerunner_attribute_raises_if_storage_not_set(self):
+        new_pipeline = Pipeline("new_pipeline")
+        with pytest.raises(PipelineConfigError):
+            new_pipeline.stagerunner
