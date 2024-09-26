@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from timothy._pipelineio_impl import MemoryPipelineIO
+from timothy._pipelineobject_impl import MemoryPipelineObject
 from timothy.core._exceptions import CannotSaveObjectError, DuplicateObjectError
 from timothy.core._pipelineobject import PipelineObject, PipelineObjectSet
 
@@ -10,8 +10,7 @@ from timothy.core._pipelineobject import PipelineObject, PipelineObjectSet
 class TestPipelineObject:
     @staticmethod
     def create_pipelineobject(name="name") -> PipelineObject:
-        pipeline_object: PipelineObject = PipelineObject(name, MemoryPipelineIO())
-        return pipeline_object
+        return MemoryPipelineObject(name)
 
     @pytest.mark.parametrize("name", ["iamaname", "iamanothername"])
     def test_name_is_correct(self, name):
@@ -30,14 +29,14 @@ class TestPipelineObjectSet:
     def test_init_raises_if_duplicate_name(self):
         with pytest.raises(DuplicateObjectError):
             PipelineObjectSet(
-                PipelineObject("a_name", MemoryPipelineIO()),
-                PipelineObject("a_name", MemoryPipelineIO()),
+                MemoryPipelineObject("a_name"),
+                MemoryPipelineObject("a_name"),
             )
 
     def test_save_raises_if_mismatched_number_of_objects(self):
         pipeline_object_set = PipelineObjectSet(
-            PipelineObject("a_name", MemoryPipelineIO()),
-            PipelineObject("another_name", MemoryPipelineIO()),
+            MemoryPipelineObject("a_name"),
+            MemoryPipelineObject("another_name"),
         )
         with pytest.raises(CannotSaveObjectError):
             pipeline_object_set.save(["a_value", "another_value", "a_third_value"])

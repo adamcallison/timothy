@@ -13,8 +13,7 @@ from timothy.core._exceptions import (
     MissingPipelineStageError,
 )
 from timothy.core._pipelinecomponentset import PipelineComponent, PipelineComponentSet
-from timothy.core._pipelineio import EmptyPipelineIO
-from timothy.core._pipelineobject import PipelineObjectSet
+from timothy.core._pipelineobject import EmptyPipelineObject, PipelineObjectSet
 from timothy.core._typedefs import StageFunction
 
 T = TypeVar("T")
@@ -70,7 +69,7 @@ class PipelineStage(PipelineComponent):
 
         param_vals = params.load()
         empty_p = tuple(
-            pn for pn, po in zip(self.params, param_vals, strict=True) if po is EmptyPipelineIO
+            pn for pn, po in zip(self.params, param_vals, strict=True) if po is EmptyPipelineObject
         )
         if empty_p:
             msg = f"Cannot call '{self.name}' due to valueless params {empty_p}."

@@ -32,7 +32,7 @@ def square_num1(num1: int) -> int:
 
 
 if __name__ == "__main__":
-    basic_math_pipe.set_initial_values(num1=5, num2=7.3)
+    basic_math_pipe.set_values(num1=5, num2=7.3)
     basic_math_pipe.run()
     values = {k: v.load() for k, v in sorted(basic_math_pipe.objects.items(), key=itemgetter(0))}
     print(f"Final values are: {values}")

@@ -3,29 +3,26 @@ from typing import TypeVar
 
 import pytest
 
-from timothy import DAGPipelineStageRunner, MemoryPipelineIO
-from timothy.core._pipeline import PipelineBase
+from timothy import DAGPipelineStageRunner, MemoryPipelineObject
+from timothy.core._pipeline import Pipeline
+from timothy.core._pipelineobject import PipelineObject
 
 T = TypeVar("T")
 
 
-class TestPipelineBase:
+class ConcretePipeline(Pipeline):
+    def _object_factory(self, name: str) -> PipelineObject:
+        return MemoryPipelineObject(name)
+
+
+class TestPipeline:
     @pytest.mark.parametrize("name", ["iamaname", "iamanothername"])
     def test_name_is_correct(self, name):
-        pipeline = PipelineBase(name, DAGPipelineStageRunner())
+        pipeline = ConcretePipeline(name, DAGPipelineStageRunner())
         assert pipeline.name == name
 
-    @pytest.mark.parametrize("object_name", ["iamaname", "iamanothername"])
-    def test_registered_object_can_be_retrieved_by_name(self, object_name):
-        pipeline = PipelineBase("name", DAGPipelineStageRunner())
-        pipeline.register_object(object_name, MemoryPipelineIO())
-        pipeline_object = pipeline.objects[object_name]
-        assert pipeline_object.name == object_name
-
     def test_registered_function_can_be_retrieved_by_name(self):
-        pipeline = PipelineBase("name", DAGPipelineStageRunner())
-        for obj_name in ("hello", "world", "foo", "bar"):
-            pipeline.register_object(obj_name, MemoryPipelineIO())
+        pipeline = ConcretePipeline("name", DAGPipelineStageRunner())
 
         @pipeline.register(returns=["foo", "bar"])
         def iamafunction(hello: str, world: int) -> tuple[list[str], dict[str, int]]:
@@ -38,7 +35,7 @@ class TestPipelineBase:
         assert stage.returns == ["foo", "bar"]
 
     def test_register_respects_specified_name(self):
-        pipeline = PipelineBase("name", DAGPipelineStageRunner())
+        pipeline = ConcretePipeline("name", DAGPipelineStageRunner())
 
         @pipeline.register(name="iamadifferentname", returns=[])
         def iamafunction() -> None: ...
@@ -46,8 +43,7 @@ class TestPipelineBase:
         assert pipeline.stages["iamadifferentname"].name == "iamadifferentname"
 
     def test_register_respects_specified_params(self):
-        pipeline = PipelineBase("name", DAGPipelineStageRunner())
-        pipeline.register_object("iamavalue", MemoryPipelineIO())
+        pipeline = ConcretePipeline("name", DAGPipelineStageRunner())
 
         @pipeline.register(params=["iamavalue"], returns=[])
         def iamafunction(hello_world: int) -> None:
@@ -56,13 +52,8 @@ class TestPipelineBase:
         assert pipeline.stages["iamafunction"].params == ["iamavalue"]
 
     def test_run_works_correctly(self):
-        pipeline = PipelineBase("test_pipeline", DAGPipelineStageRunner())
-        pipeline.register_object("num1", MemoryPipelineIO(initial_value=5))
-        pipeline.register_object("num2", MemoryPipelineIO(initial_value=7.3))
-        pipeline.register_object("num3", MemoryPipelineIO())
-        pipeline.register_object("num4", MemoryPipelineIO())
-        pipeline.register_object("num5", MemoryPipelineIO())
-
+        pipeline = ConcretePipeline("test_pipeline", DAGPipelineStageRunner())
+        pipeline.set_values(num1=5, num2=7.3)
         print_to = io.StringIO()
 
         @pipeline.register(returns=["num5"])

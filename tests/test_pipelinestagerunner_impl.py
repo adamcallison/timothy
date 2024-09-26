@@ -1,9 +1,8 @@
 import pytest
 
-from timothy import MemoryPipelineIO
+from timothy import MemoryPipelineObject
 from timothy._pipelinestagerunner_impl import DAGPipelineStageRunner
 from timothy.core import (
-    PipelineObject,
     PipelineObjectSet,
     PipelineStage,
     PipelineStageSet,
@@ -26,8 +25,8 @@ class TestDAGPipelineStageRunner:
             PipelineStage(halves_num2_to_get_num1, ["num1"]),
         )
         objects = PipelineObjectSet(
-            PipelineObject("num1", MemoryPipelineIO()),
-            PipelineObject("num2", MemoryPipelineIO()),
+            MemoryPipelineObject("num1"),
+            MemoryPipelineObject("num2"),
         )
 
         with pytest.raises(CannotRunPipelineError):
@@ -44,7 +43,7 @@ class TestDAGPipelineStageRunner:
 
         stages = PipelineStageSet(PipelineStage(foo, ["num3"]), PipelineStage(bar, ["num4"]))
         objects = PipelineObjectSet(
-            *(PipelineObject(f"num{j}", MemoryPipelineIO()) for j in range(1, 6)),
+            *(MemoryPipelineObject(f"num{j}") for j in range(1, 6)),
         )
 
         with pytest.raises(CannotRunPipelineError) as e:

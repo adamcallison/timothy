@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from collections import Counter
 from collections.abc import Sequence
 from typing import Any, Generic, TypeVar
@@ -8,27 +9,36 @@ from timothy.core._exceptions import (
     MissingPipelineObjectError,
 )
 from timothy.core._pipelinecomponentset import PipelineComponent, PipelineComponentSet
-from timothy.core._pipelineio import EmptyPipelineIOType, PipelineIO
+from timothy.core._typedefs import Singleton
 
 T = TypeVar("T")
 
 
-class PipelineObject(Generic[T], PipelineComponent):
-    def __init__(self, name: str, io: PipelineIO[T]) -> None:
-        self._io = io
-        self._name = name
-        self._has_obj = False
-        self._obj: T | None = None
+class EmptyPipelineObjectType(Singleton):
+    def __bool__(self) -> bool:
+        return False
+
+    def __eq__(self, _: object) -> bool:
+        return False
+
+
+class PipelineObject(Generic[T], PipelineComponent, ABC):
+    _name: str
 
     @property
     def name(self) -> str:
         return self._name
 
-    def load(self) -> T | EmptyPipelineIOType:
-        return self._io.load()
+    @abstractmethod
+    def load(self) -> T | EmptyPipelineObjectType: ...
+    @abstractmethod
+    def save(self, obj: T) -> None: ...
 
-    def save(self, obj: T) -> None:
-        self._io.save(obj)
+    def configure(self, **kwargs: Any) -> None:
+        del kwargs
+
+
+EmptyPipelineObject = EmptyPipelineObjectType()
 
 
 class PipelineObjectSet(PipelineComponentSet[PipelineObject]):
@@ -50,3 +60,7 @@ class PipelineObjectSet(PipelineComponentSet[PipelineObject]):
             raise CannotSaveObjectError(msg)
         for value, pipeline_object in zip(values, self.values(), strict=True):
             pipeline_object.save(value)
+
+    def configure(self, **kwargs: Any) -> None:
+        for pipeline_object in self.values():
+            pipeline_object.configure(**kwargs)

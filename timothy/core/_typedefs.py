@@ -8,7 +8,7 @@ P = ParamSpec("P")
 class StageFunction(Protocol):
     __name__: str
 
-    def __call__(self, *args: Any) -> Any: ...  # noqa: ANN401
+    def __call__(self, *args: Any) -> Any: ...
 
 
 class _SingletonMeta(type):

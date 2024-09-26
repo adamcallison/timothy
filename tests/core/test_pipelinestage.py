@@ -1,6 +1,6 @@
 import pytest
 
-from timothy._pipelineio_impl import MemoryPipelineIO
+from timothy._pipelineobject_impl import MemoryPipelineObject
 from timothy.core._exceptions import (
     CannotCallStageError,
     DuplicateObjectError,
@@ -8,7 +8,7 @@ from timothy.core._exceptions import (
     InvalidParamsError,
     InvalidResultsError,
 )
-from timothy.core._pipelineobject import PipelineObject, PipelineObjectSet
+from timothy.core._pipelineobject import PipelineObjectSet
 from timothy.core._pipelinestage import PipelineStage, PipelineStageSet
 
 
@@ -95,19 +95,19 @@ class TestPipelineStage:
         pipeline_stage = PipelineStage(some_function, returns=declared_returns)
 
         return_object_set = PipelineObjectSet(
-            *(PipelineObject(r_name, MemoryPipelineIO()) for r_name in declared_returns),
+            *(MemoryPipelineObject(r_name) for r_name in declared_returns),
         )
 
         param_object_set1 = PipelineObjectSet(
-            PipelineObject("param_a", MemoryPipelineIO(initial_value="param_a_v1")),
-            PipelineObject("param_b", MemoryPipelineIO(initial_value="param_b_v1")),
+            MemoryPipelineObject("param_a", initial_value="param_a_v1"),
+            MemoryPipelineObject("param_b", initial_value="param_b_v1"),
         )
         pipeline_stage.call(param_object_set1, return_object_set)
         assert return_object_set.load() == expected_call_return_value
 
         param_object_set2 = PipelineObjectSet(
-            PipelineObject("param_a", MemoryPipelineIO(initial_value="param_a_v2")),
-            PipelineObject("param_b", MemoryPipelineIO(initial_value="param_b_v2")),
+            MemoryPipelineObject("param_a", initial_value="param_a_v2"),
+            MemoryPipelineObject("param_b", initial_value="param_b_v2"),
         )
         pipeline_stage.call(param_object_set2, return_object_set)
         assert return_object_set.load() == expected_call_return_value
@@ -139,11 +139,11 @@ class TestPipelineStage:
 
         pipeline_stage = PipelineStage(some_function, returns=declared_returns)
         param_object_set = PipelineObjectSet(
-            PipelineObject("param_a", MemoryPipelineIO(initial_value="param_a_val")),
-            PipelineObject("param_b", MemoryPipelineIO(initial_value="param_b_val")),
+            MemoryPipelineObject("param_a", initial_value="param_a_val"),
+            MemoryPipelineObject("param_b", initial_value="param_b_val"),
         )
         return_object_set = PipelineObjectSet(
-            *(PipelineObject(r_name, MemoryPipelineIO()) for r_name in declared_returns),
+            *(MemoryPipelineObject(r_name) for r_name in declared_returns),
         )
 
         with pytest.raises(InvalidResultsError):
@@ -153,7 +153,7 @@ class TestPipelineStage:
         def does_nothing(num1: int) -> None:
             pass
 
-        param_object_set = PipelineObjectSet(PipelineObject("num1", MemoryPipelineIO()))
+        param_object_set = PipelineObjectSet(MemoryPipelineObject("num1"))
         return_object_set = PipelineObjectSet()
         stage = PipelineStage(does_nothing, [])
 
@@ -180,7 +180,7 @@ class TestPipelineStage:
             pass
 
         pipeline_stage = PipelineStage(some_function, returns=[])
-        params = PipelineObjectSet(*(PipelineObject(cw, MemoryPipelineIO()) for cw in call_with))
+        params = PipelineObjectSet(*(MemoryPipelineObject(cw) for cw in call_with))
         returns = PipelineObjectSet()
         with pytest.raises(CannotCallStageError):
             pipeline_stage.call(params, returns)
@@ -204,7 +204,7 @@ class TestPipelineStage:
 
         pipeline_stage = PipelineStage(some_function, returns=["return_a", "return_b"])
         params = PipelineObjectSet()
-        returns = PipelineObjectSet(*(PipelineObject(cw, MemoryPipelineIO()) for cw in call_with))
+        returns = PipelineObjectSet(*(MemoryPipelineObject(cw) for cw in call_with))
         with pytest.raises(CannotCallStageError):
             pipeline_stage.call(params, returns)
 
