@@ -3,11 +3,10 @@
 import argparse
 import json
 import pprint
-from operator import itemgetter
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
-from timothy import DAGPipelineStageRunner, JSONPipeline
+from timothy import JSONPipeline
 
 
 class DataRow(TypedDict):
@@ -30,7 +29,7 @@ DataRows = list[DataRow]
 AggregationRows = list[AggregationRow]
 
 
-basic_agg_pipe = JSONPipeline("basic_agg", stage_runner=DAGPipelineStageRunner())
+basic_agg_pipe = JSONPipeline("basic_agg")
 
 
 def _aggregations(data: DataRows) -> AggregationRow:
@@ -109,6 +108,6 @@ if __name__ == "__main__":
 
     basic_agg_pipe.run()
 
-    values = {k: v.load() for k, v in sorted(basic_agg_pipe.objects.items(), key=itemgetter(0))}
+    values = basic_agg_pipe.get_values()
     print("Final values are: ")
     pprint.pp(values)

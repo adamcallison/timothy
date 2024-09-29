@@ -3,7 +3,6 @@
 from timothy.core._exceptions import (
     CannotRunPipelineError,
     DuplicateObjectError,
-    MissingPipelineObjectError,
     PipelineConfigError,
     PipelineError,
 )
@@ -11,7 +10,6 @@ from timothy.core._exceptions import (
 __all__ = [
     "PipelineError",
     "CannotRunPipelineError",
-    "MissingPipelineObjectError",
     "PipelineConfigError",
     "DuplicateObjectError",
 ]

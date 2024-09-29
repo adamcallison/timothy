@@ -1,48 +1,51 @@
-from collections.abc import Sequence
-
 import pytest
 
-from timothy.core._pipelinecomponentset import PipelineComponent, PipelineComponentSet
-
-
-class FakeMissingCompError(Exception): ...
-
-
-class FakeComponent(PipelineComponent):
-    def __init__(self, name: str) -> None:
-        self._name = name
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-
-class FakeCompSet(PipelineComponentSet[FakeComponent]):
-    _missing_component_error = FakeMissingCompError
-    validation_calls: list[Sequence[FakeComponent]]
-
-    @staticmethod
-    def _validate(*fake_comps: FakeComponent) -> None:
-        if fake_comps[0].name == "should_raise":
-            raise FakeMissingCompError
+from tests.stubs import StubComponent, StubComponentSet, StubMissingCompError
 
 
 class TestPipelineComponentSet:
+    def test_getitem_returns_component_if_given_string(self):
+        fc = StubComponent("a_name")
+        pipeline_component_set = StubComponentSet(fc)
+        returned = pipeline_component_set["a_name"]
+        assert returned is fc
+
+    def test_getitem_returns_componentset_if_given_list(self):
+        fc = StubComponent("a_name")
+        pipeline_component_set = StubComponentSet(fc)
+        returned = pipeline_component_set[["a_name"]]
+        assert isinstance(returned, StubComponentSet)
+        assert returned["a_name"] is fc
+
+    @pytest.mark.parametrize(
+        ("name_to_check", "expected_result"),
+        [
+            ("a_name", True),
+            ("another_name", False),
+        ],
+    )
+    def test_contains_comparison_is_correct(self, name_to_check, expected_result):
+        pipeline_component_set = StubComponentSet(
+            StubComponent("a_name"),
+            StubComponent("a_different_name"),
+        )
+        assert (name_to_check in pipeline_component_set) == expected_result
+
     def test_getitem_raises_if_not_present(self):
-        pipeline_object_set = FakeCompSet(FakeComponent("a_name"))
-        with pytest.raises(FakeMissingCompError):
+        pipeline_object_set = StubComponentSet(StubComponent("a_name"))
+        with pytest.raises(StubMissingCompError):
             pipeline_object_set["a_different_name"]
 
     def test_init_calls_validate(self):
-        with pytest.raises(FakeMissingCompError):
-            FakeCompSet(FakeComponent("should_raise"))
-        FakeCompSet(FakeComponent("should_not_raise"))
+        with pytest.raises(StubMissingCompError):
+            StubComponentSet(StubComponent("should_raise"))
+        StubComponentSet(StubComponent("should_not_raise"))
 
     def test_adding_two_sets_other_set_produces_new_set_with_correct_components(self):
-        obj1 = FakeComponent("name1")
-        obj2 = FakeComponent("name2")
-        pipeline_obj_set1 = FakeCompSet(obj1)
-        pipeline_obj_set2 = FakeCompSet(obj2)
+        obj1 = StubComponent("name1")
+        obj2 = StubComponent("name2")
+        pipeline_obj_set1 = StubComponentSet(obj1)
+        pipeline_obj_set2 = StubComponentSet(obj2)
 
         pipeline_obj_set3 = pipeline_obj_set1 + pipeline_obj_set2
 
@@ -51,9 +54,9 @@ class TestPipelineComponentSet:
         assert list(pipeline_obj_set3.values()) == [obj1, obj2]
 
     def test_adding_set_and_object_produces_new_set_with_correct_components(self):
-        obj1 = FakeComponent("name1")
-        obj2 = FakeComponent("name2")
-        pipeline_obj_set1 = FakeCompSet(obj1)
+        obj1 = StubComponent("name1")
+        obj2 = StubComponent("name2")
+        pipeline_obj_set1 = StubComponentSet(obj1)
 
         pipeline_obj_set2 = pipeline_obj_set1 + obj2
 
@@ -61,9 +64,9 @@ class TestPipelineComponentSet:
         assert list(pipeline_obj_set2.values()) == [obj1, obj2]
 
     def test_adding_set_and_component_sequence_produces_new_set_with_correct_components(self):
-        obj1 = FakeComponent("name1")
-        obj2 = FakeComponent("name2")
-        pipeline_obj_set1 = FakeCompSet(obj1)
+        obj1 = StubComponent("name1")
+        obj2 = StubComponent("name2")
+        pipeline_obj_set1 = StubComponentSet(obj1)
 
         pipeline_obj_set2 = pipeline_obj_set1 + [obj2]  # noqa: RUF005
 
@@ -71,9 +74,14 @@ class TestPipelineComponentSet:
         assert list(pipeline_obj_set2.values()) == [obj1, obj2]
 
     def test_keys_produce_correct_names(self):
-        fake_comp_set = FakeCompSet(FakeComponent("foo"), FakeComponent("bar"))
+        fake_comp_set = StubComponentSet(StubComponent("foo"), StubComponent("bar"))
         assert tuple(fake_comp_set.keys()) == ("foo", "bar")
 
     def test_iterating_produces_correct_names(self):
-        fake_comp_set = FakeCompSet(FakeComponent("foo"), FakeComponent("bar"))
+        fake_comp_set = StubComponentSet(StubComponent("foo"), StubComponent("bar"))
         assert tuple(fake_comp_set) == ("foo", "bar")
+
+    def test_items_produces_iterable_over_correct_tuples(self):
+        fc_foo, fc_bar = StubComponent("foo"), StubComponent("bar")
+        fake_comp_set = StubComponentSet(fc_foo, fc_bar)
+        assert tuple(fake_comp_set.items()) == (("foo", fc_foo), ("bar", fc_bar))

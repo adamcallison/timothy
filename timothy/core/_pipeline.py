@@ -1,38 +1,47 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Sequence
-from contextlib import suppress
-from typing import Any, ParamSpec, TypeVar
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, Generic, ParamSpec, TypeVar
 
-from timothy.core._exceptions import DuplicateObjectError
-from timothy.core._pipelinecore import PipelineCore
-from timothy.core._pipelineobject import PipelineObject, PipelineObjectSet
 from timothy.core._pipelinestage import PipelineStage, PipelineStageSet
 from timothy.core._pipelinestagerunner import PipelineStageRunner
+from timothy.core._pipelinestorage import PipelineStorage
+from timothy.core._typedefs import Obj
 
 T = TypeVar("T")
 R = TypeVar("R")
 P = ParamSpec("P")
+_PipelineStageRunner = TypeVar("_PipelineStageRunner", bound=PipelineStageRunner)
+_PipelineStorage = TypeVar("_PipelineStorage", bound=PipelineStorage)
 
 
-class Pipeline(ABC):
-    def __init__(self, name: str, stage_runner: PipelineStageRunner) -> None:
+class Pipeline(ABC, Generic[_PipelineStageRunner, _PipelineStorage]):
+    def __init__(self, name: str, *, stages: PipelineStageSet | None = None) -> None:
         self._name = name
-        self._core = PipelineCore(stage_runner)
+        self._stages = stages or PipelineStageSet()
+        self._stagerunner = self.init_stagerunner()
+        self._storage = self.init_storage()
 
+    @staticmethod
     @abstractmethod
-    def _object_factory(self, name: str) -> PipelineObject: ...
+    def init_storage() -> _PipelineStorage: ...
+
+    @staticmethod
+    @abstractmethod
+    def init_stagerunner() -> _PipelineStageRunner: ...
 
     @property
     def name(self) -> str:
         return self._name
 
     @property
-    def objects(self) -> PipelineObjectSet:
-        return self._core.objects
-
-    @property
     def stages(self) -> PipelineStageSet:
-        return self._core.stages
+        return self._stages
+
+    def add_stage(self, stage: PipelineStage) -> None:
+        self._stages += stage
+
+    def run(self) -> None:
+        self._stagerunner(self._stages, self._storage)
 
     def register(
         self,
@@ -42,23 +51,15 @@ class Pipeline(ABC):
     ) -> Callable[[Callable[P, T]], Callable[P, T]]:
         def dec(f: Callable[P, T]) -> Callable[P, T]:
             stage = PipelineStage(f, returns, name=name, params=params)
-            for param_or_return in stage.params + stage.returns:
-                if param_or_return in self._core.objects:
-                    continue
-                obj = self._object_factory(param_or_return)
-                self._core.add_object(obj)
-
-            self._core.add_stage(stage)
+            self.add_stage(stage)
             return f
 
         return dec
 
-    def run(self) -> None:
-        self._core.run()
-
     def set_values(self, **kwargs: Any) -> None:
-        for objname, objval in kwargs.items():
-            with suppress(DuplicateObjectError):
-                obj = self._object_factory(objname)
-                self._core.add_object(obj)
-            self._core.objects[objname].save(objval)
+        self._storage.store_many(**kwargs)
+
+    def get_values(self, *names: str) -> Mapping[str, Obj]:
+        if not names:
+            names = tuple(self._storage.list_names())
+        return dict(zip(names, self._storage.fetch_many(*names), strict=True))

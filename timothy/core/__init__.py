@@ -1,24 +1,19 @@
 """Core functionality."""
 
 from timothy.core._pipeline import Pipeline
-from timothy.core._pipelinecore import PipelineCore
-from timothy.core._pipelineobject import (
-    EmptyPipelineObject,
-    EmptyPipelineObjectType,
-    PipelineObject,
-    PipelineObjectSet,
-)
+from timothy.core._pipelinecomponentset import PipelineComponent, PipelineComponentSet
 from timothy.core._pipelinestage import PipelineStage, PipelineStageSet
 from timothy.core._pipelinestagerunner import PipelineStageRunner
+from timothy.core._pipelinestorage import PipelineStorage
+from timothy.core._typedefs import Obj
 
 __all__ = [
-    "PipelineObject",
-    "PipelineObjectSet",
     "PipelineStage",
     "PipelineStageSet",
     "Pipeline",
-    "EmptyPipelineObjectType",
-    "EmptyPipelineObject",
     "PipelineStageRunner",
-    "PipelineCore",
+    "PipelineStorage",
+    "Obj",
+    "PipelineComponent",
+    "PipelineComponentSet",
 ]

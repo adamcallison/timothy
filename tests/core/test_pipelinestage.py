@@ -1,6 +1,5 @@
 import pytest
 
-from timothy._pipelineobject_impl import MemoryPipelineObject
 from timothy.core._exceptions import (
     CannotCallStageError,
     DuplicateObjectError,
@@ -8,27 +7,23 @@ from timothy.core._exceptions import (
     InvalidParamsError,
     InvalidResultsError,
 )
-from timothy.core._pipelineobject import PipelineObjectSet
 from timothy.core._pipelinestage import PipelineStage, PipelineStageSet
 
 
+def zero_func(foo, bar) -> tuple[int, str]:
+    del foo
+    del bar
+    return 0, "zero"
+
+
 class TestPipelineStage:
-    @pytest.fixture(scope="module")
-    def return_zero_func(self):
-        def return_zero(foo, bar) -> tuple[int, str]:
-            del foo
-            del bar
-            return 0, "zero"
+    def test_name_is_correct(self):
+        zero_stage = PipelineStage(zero_func, returns=["baz", "bazstr"])
+        assert zero_stage.name == zero_func.__name__
 
-        return return_zero
-
-    def test_name_is_correct(self, return_zero_func):
-        return_zero_stage = PipelineStage(return_zero_func, returns=["baz", "bazstr"])
-        assert return_zero_stage.name == "return_zero"
-
-    def test_func_is_correct(self, return_zero_func):
-        return_zero_stage = PipelineStage(return_zero_func, returns=["baz", "bazstr"])
-        assert return_zero_stage.func is return_zero_func
+    def test_func_is_correct(self):
+        zero_stage = PipelineStage(zero_func, returns=["baz", "bazstr"])
+        assert zero_stage.func is zero_func
 
     @pytest.mark.parametrize(
         ("params_specified", "params_expected"),
@@ -40,17 +35,17 @@ class TestPipelineStage:
             (["baz", "boz"], ["baz", "boz"]),
         ],
     )
-    def test_params_are_correct(self, return_zero_func, params_specified, params_expected):
-        return_zero_stage = PipelineStage(
-            return_zero_func,
+    def test_params_are_correct(self, params_specified, params_expected):
+        zero_stage = PipelineStage(
+            zero_func,
             params=params_specified,
             returns=["baz", "bazstr"],
         )
-        assert return_zero_stage.params == params_expected
+        assert zero_stage.params == params_expected
 
-    def test_returns_are_correct(self, return_zero_func):
-        return_zero_stage = PipelineStage(return_zero_func, returns=["baz", "bazstr"])
-        assert return_zero_stage.returns == ["baz", "bazstr"]
+    def test_returns_are_correct(self):
+        zero_stage = PipelineStage(zero_func, returns=["baz", "bazstr"])
+        assert zero_stage.returns == ["baz", "bazstr"]
 
     @pytest.mark.parametrize(
         "params_specified",
@@ -59,10 +54,10 @@ class TestPipelineStage:
             ["hello", "world", "helloworld"],
         ],
     )
-    def test_init_raises_if_incorrect_number_of_params(self, return_zero_func, params_specified):
+    def test_init_raises_if_incorrect_number_of_params(self, params_specified):
         with pytest.raises(InvalidParamsError):
             PipelineStage(
-                return_zero_func,
+                zero_func,
                 params=params_specified,
                 returns=["baz", "bazstr"],
             )
@@ -94,23 +89,11 @@ class TestPipelineStage:
 
         pipeline_stage = PipelineStage(some_function, returns=declared_returns)
 
-        return_object_set = PipelineObjectSet(
-            *(MemoryPipelineObject(r_name) for r_name in declared_returns),
-        )
+        return_objs = pipeline_stage.call(["param_a_v1", "param_b_v1"])
+        assert return_objs == expected_call_return_value
 
-        param_object_set1 = PipelineObjectSet(
-            MemoryPipelineObject("param_a", initial_value="param_a_v1"),
-            MemoryPipelineObject("param_b", initial_value="param_b_v1"),
-        )
-        pipeline_stage.call(param_object_set1, return_object_set)
-        assert return_object_set.load() == expected_call_return_value
-
-        param_object_set2 = PipelineObjectSet(
-            MemoryPipelineObject("param_a", initial_value="param_a_v2"),
-            MemoryPipelineObject("param_b", initial_value="param_b_v2"),
-        )
-        pipeline_stage.call(param_object_set2, return_object_set)
-        assert return_object_set.load() == expected_call_return_value
+        return_objs = pipeline_stage.call(["param_a_v2", "param_b_v2"])
+        assert return_objs == expected_call_return_value
 
         assert calls == [("param_a_v1", "param_b_v1"), ("param_a_v2", "param_b_v2")]
 
@@ -126,7 +109,7 @@ class TestPipelineStage:
             ([1, 2.0, "three"], ["list", "fish"]),
         ],
     )
-    def test_call_raises_if_return_values_dont_mach_declared(
+    def test_call_raises_if_number_of_returns_doesnt_match_declared(
         self,
         raw_return_value,
         declared_returns,
@@ -138,75 +121,25 @@ class TestPipelineStage:
             return raw_return_value
 
         pipeline_stage = PipelineStage(some_function, returns=declared_returns)
-        param_object_set = PipelineObjectSet(
-            MemoryPipelineObject("param_a", initial_value="param_a_val"),
-            MemoryPipelineObject("param_b", initial_value="param_b_val"),
-        )
-        return_object_set = PipelineObjectSet(
-            *(MemoryPipelineObject(r_name) for r_name in declared_returns),
-        )
 
         with pytest.raises(InvalidResultsError):
-            pipeline_stage.call(param_object_set, return_object_set)
-
-    def test_call_raises_if_a_pipeline_object_has_no_value(self):
-        def does_nothing(num1: int) -> None:
-            pass
-
-        param_object_set = PipelineObjectSet(MemoryPipelineObject("num1"))
-        return_object_set = PipelineObjectSet()
-        stage = PipelineStage(does_nothing, [])
-
-        with pytest.raises(CannotCallStageError) as e:
-            stage.call(param_object_set, return_object_set)
-
-        assert str(e.value) == "Cannot call 'does_nothing' due to valueless params ('num1',)."
+            pipeline_stage.call(["param_a", "param_b"])
 
     @pytest.mark.parametrize(
         "call_with",
         [
             (),
             ("param_a",),
-            ("param_c",),
-            ("param_a", "param_c"),
-            ("param_c", "param_d"),
-            ("param_b", "param_a"),
             ("param_a", "param_b", "param_c"),
-            ("param_c", "param_d", "param_e"),
         ],
     )
-    def test_call_raises_if_params_not_correct(self, call_with):
+    def test_call_raises_if_number_of_params_not_correct(self, call_with):
         def some_function(param_a, param_b) -> None:
             pass
 
         pipeline_stage = PipelineStage(some_function, returns=[])
-        params = PipelineObjectSet(*(MemoryPipelineObject(cw) for cw in call_with))
-        returns = PipelineObjectSet()
         with pytest.raises(CannotCallStageError):
-            pipeline_stage.call(params, returns)
-
-    @pytest.mark.parametrize(
-        "call_with",
-        [
-            (),
-            ("return_a",),
-            ("return_c",),
-            ("return_a", "return_c"),
-            ("return_c", "return_d"),
-            ("return_b", "return_a"),
-            ("return_a", "return_b", "return_c"),
-            ("return_c", "return_d", "return_e"),
-        ],
-    )
-    def test_call_raises_if_returns_not_correct(self, call_with):
-        def some_function() -> tuple[str, str]:
-            return "value_a", "value_b"
-
-        pipeline_stage = PipelineStage(some_function, returns=["return_a", "return_b"])
-        params = PipelineObjectSet()
-        returns = PipelineObjectSet(*(MemoryPipelineObject(cw) for cw in call_with))
-        with pytest.raises(CannotCallStageError):
-            pipeline_stage.call(params, returns)
+            pipeline_stage.call(call_with)
 
 
 class TestPipelineStageSet:

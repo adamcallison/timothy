@@ -1,14 +1,12 @@
 from graphlib import CycleError, TopologicalSorter
 from typing import cast
 
-from timothy.core import PipelineObjectSet, PipelineStageSet
-from timothy.core._exceptions import CannotRunPipelineError
+from timothy.core import PipelineStageSet, PipelineStorage
+from timothy.exceptions import CannotRunPipelineError
 
 
 class DAGPipelineStageRunner:
-    def __call__(self, stages: PipelineStageSet, objects: PipelineObjectSet) -> None:
-        self._check_all_objects_are_used(stages, objects)
-
+    def __call__(self, stages: PipelineStageSet, storage: PipelineStorage) -> None:
         dag: TopologicalSorter = TopologicalSorter()
 
         # TODO: some of the logic in these 2 loops can go into pipelinestageset
@@ -31,16 +29,6 @@ class DAGPipelineStageRunner:
             stage_group_names = list(cast(tuple[str], dag.get_ready()))
             stage_group = stages[stage_group_names]
             for stage in stage_group.values():
-                stage.call(objects[stage.params], objects[stage.returns])
+                return_objs = stage.call(storage.fetch_many(*stage.params))
+                storage.store_many(**dict(zip(stage.returns, return_objs, strict=True)))
             dag.done(*stage_group_names)
-
-    @staticmethod
-    def _check_all_objects_are_used(stages: PipelineStageSet, objects: PipelineObjectSet) -> None:
-        # TODO: consider moving to a base class
-        used_objects = set().union(
-            *(set(stage.params + stage.returns) for stage in stages.values()),
-        )
-        unused_objects = tuple(set(objects) - used_objects)
-        if unused_objects:
-            msg = f"Pipeline object(s) {unused_objects} are not used as params or return values."
-            raise CannotRunPipelineError(msg)

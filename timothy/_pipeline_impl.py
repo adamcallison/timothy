@@ -1,32 +1,32 @@
 from pathlib import Path
 from typing import ParamSpec, TypeVar
 
-from timothy._pipelineobject_impl import JSONFilePipelineObject, MemoryPipelineObject
+from timothy._pipelinestagerunner_impl import DAGPipelineStageRunner
+from timothy._pipelinestorage_impl import JSONFilePipelineStorage, MemoryPipelineStorage
 from timothy.core import Pipeline
-from timothy.exceptions import PipelineConfigError
 
 T = TypeVar("T")
 P = ParamSpec("P")
 
 
-class MemoryPipeline(Pipeline):
-    def _object_factory(self, name: str) -> MemoryPipelineObject:
-        return MemoryPipelineObject(name)
+class MemoryPipeline(Pipeline[DAGPipelineStageRunner, MemoryPipelineStorage]):
+    @staticmethod
+    def init_stagerunner() -> DAGPipelineStageRunner:
+        return DAGPipelineStageRunner()
+
+    @staticmethod
+    def init_storage() -> MemoryPipelineStorage:
+        return MemoryPipelineStorage()
 
 
-class JSONPipeline(Pipeline):
-    _location: Path | None = None
+class JSONPipeline(Pipeline[DAGPipelineStageRunner, JSONFilePipelineStorage]):
+    @staticmethod
+    def init_stagerunner() -> DAGPipelineStageRunner:
+        return DAGPipelineStageRunner()
 
-    @property
-    def location(self) -> Path:
-        if self._location is None:
-            msg = "Location not set."
-            raise PipelineConfigError(msg)
-        return self._location
+    @staticmethod
+    def init_storage() -> JSONFilePipelineStorage:
+        return JSONFilePipelineStorage()
 
     def set_location(self, location: Path) -> None:
-        self._location = location
-        self._core.objects.configure(location=location)
-
-    def _object_factory(self, name: str) -> JSONFilePipelineObject:
-        return JSONFilePipelineObject(name)
+        self._storage.set_location(location)
